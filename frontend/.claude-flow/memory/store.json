@@ -1,0 +1,41 @@
+{
+  "entries": {
+    "cmd-1792328533791": {
+      "key": "cmd-1792328533791",
+      "value": "{\"command\":\"cd \\\"C:\\\\Users\\\\ASUS\\\\Desktop\\\\BLUE-CARBON-REGISTRATION-AND-MONITORING\\\\frontend\\\" && npm run build 2>&1 | tail -20\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-18T13:02:13.791Z",
+      "lastAccessed": "2026-10-18T13:02:13.791Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-17T13:02:13.791Z"
+    },
+    "cmd-1792328556010": {
+      "key": "cmd-1792328556010",
+      "value": "{\"command\":\"echo \\\"Build OK. Req 4 marketplace: implemented via backend /marketplace/listings + frontend fetch (truthful empty when no listings); authenticates via current_user. Req 5 profile: uses /dashboard/user (authoritative), shows allocations + remaining balance; zero only when recorded; shows 'Not recorded' otherwise. Req 3 ML: kept honest (no pipeline, no fabricated metrics).\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-18T13:02:36.010Z",
+      "lastAccessed": "2026-10-18T13:02:36.010Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-17T13:02:36.010Z"
+    },
+    "cmd-1792328569933": {
+      "key": "cmd-1792328569933",
+      "value": "{\"command\":\"git diff --stat\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-18T13:02:49.933Z",
+      "lastAccessed": "2026-10-18T13:02:49.933Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-17T13:02:49.933Z"
+    },
+    "cmd-1792328655783": {
+      "key": "cmd-1792328655783",
+      "value": "{\"command\":\"grep -r \\\"@router.get\\\" backend/app/api/ | grep -E \\\"marketplace|dashboard|admin\\\"\",\"exitCode\":0,\"success\":true}",
+      "namespace": "commands",
+      "storedAt": "2026-10-18T13:04:15.783Z",
+      "lastAccessed": "2026-10-18T13:04:15.783Z",
+      "accessCount": 0,
+      "expiresAt": "2026-11-17T13:04:15.783Z"
+    }
+  },
+  "version": "3.0.0"
+}

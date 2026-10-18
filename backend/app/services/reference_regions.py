@@ -92,6 +92,8 @@ def reference_feature_collection() -> dict:
     }
     output: list[dict] = []
     for row in _records():
+        if row.get("source") == "SYNTHETIC_DEMO" or "SYNTHETIC_DEMO" in (row.get("data_status") or ""):
+            continue
         district = (row.get("district") or "").strip()
         boundary_name = BOUNDARY_NAME_BY_DISTRICT.get(district.casefold())
         source_feature = features_by_name.get((boundary_name or "").casefold())
@@ -134,7 +136,9 @@ def reference_feature_collection() -> dict:
             "unmatched_csv_rows": [
                 row.get("district")
                 for row in _records()
-                if row.get("district", "").casefold() not in BOUNDARY_NAME_BY_DISTRICT
+                if row.get("source") != "SYNTHETIC_DEMO"
+                and "SYNTHETIC_DEMO" not in (row.get("data_status") or "")
+                and row.get("district", "").casefold() not in BOUNDARY_NAME_BY_DISTRICT
             ],
         },
     }
