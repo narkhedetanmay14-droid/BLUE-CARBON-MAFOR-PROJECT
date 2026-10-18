@@ -65,8 +65,20 @@ function AdminAnalysis() { const [items, setItems] = useState<any[]>([]); const 
 
 function AuditLogs() { const [items, setItems] = useState<any[]>([]); const [error, setError] = useState(""); useEffect(() => { api("/admin/audit-logs").then(setItems).catch(e => setError(e.message)); }, []); return <section className="panel"><h2>Audit Logs</h2>{error && <p className="notice">{error}</p>}{!error && !items.length && <p>No audit events recorded yet.</p>}{items.map((item, index) => <article className="audit-row" key={item.id || index}><strong>{item.event}</strong><span>{item.decision || ""}</span><small>{item.created_at}</small><p>{item.reason || ""}</p></article>)}</section>; }
 
-function Marketplace() { return <section className="panel"><h2>Carbon Marketplace</h2><p>Only verified, eligible credit batches may be listed. Certified credit issuance and purchases remain unavailable until a documented methodology and safe transfer flow are configured.</p></section>; }
-function Profile({ user }: { user: User }) { return <section className="panel"><h2>Profile</h2><p><strong>{user.display_name}</strong><br />{user.username} · {user.role}</p></section>; }
+function Marketplace() {
+  const [items, setItems] = useState<any[]>([]); const [error, setError] = useState(""); const [busy, setBusy] = useState(true);
+  useEffect(() => { api("/marketplace/listings").then(setItems).catch(e => setError(e.message)).finally(() => setBusy(false)); }, []);
+  return <section className="panel"><h2>Carbon Marketplace</h2>{busy ? <p>Loading listings…</p> : error ? <p className="notice">{error}</p> : !items.length ? <p>No active marketplace listings available. Verified credit issuance and transfers remain unavailable until external methodology and payment flows are configured.</p> : <div className="table-wrap"><table><thead><tr><th>Listing</th><th>Seller</th><th>Quantity</th><th>Price / credit</th><th>Status</th></tr></thead><tbody>{items.map((item: any) => <tr key={item.id}><td>{item.id}</td><td>{item.seller_id}</td><td>{item.quantity}</td><td>{item.price_per_credit}</td><td>{item.status}</td></tr>)}</tbody></table></div>}</section>;
+}
+function Profile({ user }: { user: User }) {
+  const [data, setData] = useState<any>(null); const [error, setError] = useState(""); const [busy, setBusy] = useState(true);
+  useEffect(() => { api("/dashboard/user").then(setData).catch(e => setError(e.message)).finally(() => setBusy(false)); }, [user]);
+  if (busy) return <section className="panel"><h2>Profile</h2><p>Loading…</p></section>;
+  if (error) return <section className="panel"><h2>Profile</h2><p className="notice">{error}</p></section>;
+  const alloc = data?.allocations || [];
+  const balance = data?.available_credits ?? (data?.balance !== undefined ? data.balance : "Not recorded");
+  return <section className="panel"><h2>Profile</h2><p><strong>{user.display_name}</strong><br />{user.username} · <span className="role">{user.role}</span></p><h3>Carbon allocation</h3>{alloc.length === 0 ? <p>No allocated credits recorded.</p> : <div className="table-wrap"><table><thead><tr><th>Project</th><th>Allocated</th><th>Used / Reserved</th><th>Remaining</th></tr></thead><tbody>{alloc.map((a: any) => <tr key={a.project_id || a.id}><td>{a.project_name || a.project_id}</td><td>{a.allocated ?? "—"}</td><td>{a.consumed ?? a.reserved ?? "—"}</td><td>{a.remaining ?? "—"}</td></tr>)}</tbody></table></div>}<h3>Remaining balance</h3><p><strong>{balance}</strong> {balance === "Not recorded" ? <small>(authoritative ledger not yet configured or no credit records exist)</small> : <small>credits (from authenticated backend)</small>}</p></section>;
+}
 function NormalRoute({ user, children }: { user: User; children: React.ReactNode }) { return user.role === "user" ? <>{children}</> : <Navigate to="/" replace />; }
 function AdminRoute({ user, children }: { user: User; children: React.ReactNode }) { return user.role === "admin" ? <>{children}</> : <Navigate to="/" replace />; }
 
