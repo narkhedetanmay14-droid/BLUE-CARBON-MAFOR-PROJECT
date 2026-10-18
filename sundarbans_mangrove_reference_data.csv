@@ -1,0 +1,5 @@
+﻿country,state,district,region,assessment_year,very_dense_mangrove_km2,moderately_dense_mangrove_km2,open_mangrove_km2,total_mangrove_cover_km2,change_vs_2021_km2,tree_count,carbon_stock_tonnes,data_status
+India,West Bengal,Purba Medinipur,Sundarbans-adjacent mangrove region,2023,0.0,0.79,2.86,3.65,0.0,,,Official district mangrove area; tree count/carbon not supplied in this table
+India,West Bengal,North 24 Parganas,Sundarbans,2023,13.44,11.47,1.72,26.63,0.0,,,Official district mangrove area; tree count/carbon not supplied in this table
+India,West Bengal,South 24 Parganas,Sundarbans,2023,968.19,691.53,429.16,2088.88,1.41,,,Official district mangrove area; tree count/carbon not supplied in this table
+India,West Bengal,West Bengal total,All West Bengal mangrove regions,2023,981.63,703.79,433.74,2119.16,1.41,,,Official state total; not a polygon-level estimate

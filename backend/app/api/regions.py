@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from app.security.authentication import current_user
 from app.services.geospatial_service import validate_polygon
 from app.services.json_storage import read_records
+from app.services.reference_regions import reference_feature_collection, reference_records
 router=APIRouter(prefix="/regions",tags=["regions"])
 class RegionIn(BaseModel): geojson: dict
 @router.post("/validate")
@@ -22,3 +23,16 @@ def overlaps(region_id:str,user=Depends(current_user)):
         if b and a[0]<b[2] and a[2]>b[0] and a[1]<b[3] and a[3]>b[1]:
             found.append({"region_id":r["id"],"project_id":r["project_id"],"warning_type":"bounding_box_overlap"})
     return {"overlaps":found,"note":"Bounding-box overlap is only a warning, not proof of polygon intersection."}
+
+@router.get("/reference-data")
+def reference_data():
+    return reference_records()
+
+@router.get("/reference-regions")
+def reference_regions():
+    """GeoJSON polygons only for reliably matched CSV reference rows."""
+    from fastapi import HTTPException
+    try:
+        return reference_feature_collection()
+    except RuntimeError as exc:
+        raise HTTPException(503, str(exc)) from exc

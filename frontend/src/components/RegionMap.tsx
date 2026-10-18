@@ -1,367 +1,198 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet-draw";
+import { api } from "../services/api";
 
-type DrawingState = "idle" | "drawing" | "finished";
+type Geometry = { type: "Polygon" | "MultiPolygon"; coordinates: unknown[] };
+type Reference = { reference_id: string; district?: string; region?: string; total_mangrove_cover_km2?: string; assessment_year?: string; data_status?: string };
+type ReferenceFeature = { type: "Feature"; id: string; geometry: Geometry; properties: Reference };
+type ReferenceCollection = { type: "FeatureCollection"; features: ReferenceFeature[]; metadata?: { boundary_source?: string } };
+type Selection = { referenceRegionId: string | null; referenceRegion?: Reference | null };
 
-export default function RegionMap({ onChange }: { onChange: (g: any) => void }) {
-  const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<L.Map | null>(null);
-  const drawnItemsRef = useRef<L.FeatureGroup | null>(null);
-  const currentPolygonRef = useRef<L.Polygon | null>(null);
-  const markersRef = useRef<L.Marker[]>([]);
-  const tempLineRef = useRef<L.Polyline | null>(null);
-  const changeCallbackRef = useRef(onChange);
-  
-  changeCallbackRef.current = onChange;
+const yellowStyle: L.PathOptions = { color: "#b77900", weight: 2, fillColor: "#facc15", fillOpacity: 0.42 };
+const redStyle: L.PathOptions = { color: "#b91c1c", weight: 3, fillColor: "#ef4444", fillOpacity: 0.46 };
 
-  const [drawingState, setDrawingState] = useState<DrawingState>("idle");
-  const [vertexCount, setVertexCount] = useState(0);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [areaHectares, setAreaHectares] = useState<number | null>(null);
+function closeRing(points: L.LatLng[]) {
+  return [...points, points[0]].map((point) => [point.lng, point.lat]);
+}
 
-  // Clear all markers
-  const clearMarkers = useCallback(() => {
-    markersRef.current.forEach((marker) => {
-      if (mapInstanceRef.current) mapInstanceRef.current.removeLayer(marker);
+export default function RegionMap({
+  onChange,
+  initialGeometry = null,
+  initialReferenceRegionId = null,
+  readOnly = false,
+}: {
+  onChange?: (geometry: Geometry | null, selection: Selection) => void;
+  initialGeometry?: Geometry | null;
+  initialReferenceRegionId?: string | null;
+  readOnly?: boolean;
+}) {
+  const mapElementRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const referenceLayerRef = useRef<L.GeoJSON | null>(null);
+  const selectedLayerRef = useRef<L.GeoJSON | null>(null);
+  const customLayerRef = useRef<L.Polygon | null>(null);
+  const customMarkersRef = useRef<L.Marker[]>([]);
+  const previewRef = useRef<L.Polyline | null>(null);
+  const geometryRef = useRef<Geometry | null>(initialGeometry);
+  const selectionRef = useRef<Selection>({ referenceRegionId: initialReferenceRegionId, referenceRegion: null });
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const [drawing, setDrawing] = useState(false);
+  const [vertices, setVertices] = useState(0);
+  const [referenceState, setReferenceState] = useState<"loading" | "ready" | "error">("loading");
+  const [mapMessage, setMapMessage] = useState("Loading CSV-backed reference regions…");
+
+  const emit = useCallback((geometry: Geometry | null, selection: Selection) => {
+    geometryRef.current = geometry;
+    selectionRef.current = selection;
+    onChangeRef.current?.(geometry, selection);
+  }, []);
+
+  const clearCustomDrawing = useCallback(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    customMarkersRef.current.forEach((marker) => map.removeLayer(marker));
+    customMarkersRef.current = [];
+    if (previewRef.current) map.removeLayer(previewRef.current);
+    previewRef.current = null;
+    if (customLayerRef.current) map.removeLayer(customLayerRef.current);
+    customLayerRef.current = null;
+    setVertices(0);
+  }, []);
+
+  const setReferenceStyles = useCallback((selectedId: string | null) => {
+    referenceLayerRef.current?.eachLayer((layer) => {
+      const feature = (layer as L.GeoJSON).feature as ReferenceFeature | undefined;
+      if (feature) (layer as L.Path).setStyle(feature.id === selectedId ? redStyle : yellowStyle);
     });
-    markersRef.current = [];
   }, []);
 
-  // Clear temporary line
-  const clearTempLine = useCallback(() => {
-    if (tempLineRef.current && mapInstanceRef.current) {
-      mapInstanceRef.current.removeLayer(tempLineRef.current);
-      tempLineRef.current = null;
-    }
-  }, []);
+  const showSavedGeometry = useCallback((geometry: Geometry, referenceId: string | null) => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (selectedLayerRef.current) map.removeLayer(selectedLayerRef.current);
+    if (customLayerRef.current) map.removeLayer(customLayerRef.current);
+    selectedLayerRef.current = L.geoJSON(geometry as GeoJSON.GeoJsonObject, { style: redStyle }).addTo(map);
+    setReferenceStyles(referenceId);
+    const bounds = selectedLayerRef.current.getBounds();
+    if (bounds.isValid()) map.fitBounds(bounds.pad(0.12));
+  }, [setReferenceStyles]);
 
-  // Remove current polygon
-  const removeCurrentPolygon = useCallback(() => {
-    if (currentPolygonRef.current && drawnItemsRef.current) {
-      drawnItemsRef.current.removeLayer(currentPolygonRef.current);
-      currentPolygonRef.current = null;
-    }
-  }, []);
-
-  // Add a vertex marker
-  const addMarker = useCallback((latlng: L.LatLng, index: number) => {
-    if (!mapInstanceRef.current) return;
-    
-    const icon = L.divIcon({
-      className: "polygon-vertex-marker",
-      html: `<div class="vertex-marker" data-index="${index}">${index + 1}</div>`,
-      iconSize: [24, 24],
-      iconAnchor: [12, 12],
-    });
-
-    const marker = L.marker(latlng, { icon, interactive: false });
-    marker.addTo(mapInstanceRef.current);
-    markersRef.current.push(marker);
-  }, []);
-
-  // Update polygon preview from points
-  const updatePolygonPreview = useCallback((points: L.LatLng[]) => {
-    if (!mapInstanceRef.current || points.length < 2) return;
-
-    clearTempLine();
-
-    // Draw temporary line connecting all points
-    tempLineRef.current = L.polyline(points, {
-      color: "#2563eb",
-      weight: 2,
-      dashArray: "5, 5",
-      opacity: 0.8,
-    }).addTo(mapInstanceRef.current);
-  }, [clearTempLine]);
-
-  // Finish polygon by closing it
-  const finishPolygon = useCallback(() => {
-    const points = markersRef.current.map((m) => m.getLatLng());
-    
-    if (points.length < 3) {
-      setErrorMessage("Polygon requires at least 3 vertices. Add more points.");
-      return;
-    }
-
-    if (!mapInstanceRef.current || !drawnItemsRef.current) return;
-
-    clearTempLine();
-    removeCurrentPolygon();
-
-    // Close the polygon by repeating first point at end
-    const closedPoints = [...points, points[0]];
-
-    // Create closed polygon
-    currentPolygonRef.current = L.polygon(points, {
-      color: "#059669",
-      weight: 3,
-      fillColor: "#10b981",
-      fillOpacity: 0.25,
-    });
-
-    drawnItemsRef.current.addLayer(currentPolygonRef.current);
-
-    // Generate GeoJSON with closed ring
-    const coordinates = closedPoints.map((p) => [p.lng, p.lat]);
-    const geojson = {
-      type: "Polygon",
-      coordinates: [coordinates],
-    };
-
-    changeCallbackRef.current(geojson);
-    setDrawingState("finished");
-    setVertexCount(points.length);
-    setErrorMessage(null);
-
-    // Calculate approximate area for display
-    calculateArea(points);
-  }, [clearTempLine, removeCurrentPolygon]);
-
-  // Calculate area using spherical formula
-  const calculateArea = (points: L.LatLng[]) => {
-    if (points.length < 3) return;
-
-    const R = 6371008.8; // Earth radius in meters
-    const n = points.length;
-
-    let area = 0;
-    for (let i = 0; i < n; i++) {
-      const j = (i + 1) % n;
-      area += (points[i].lng * Math.PI) / 180 * (points[j].lat * Math.PI) / 180;
-      area -= (points[j].lng * Math.PI) / 180 * (points[i].lat * Math.PI) / 180;
-    }
-
-    area = Math.abs(area * R * R / 2);
-    setAreaHectares(Math.round((area / 10000) * 100) / 100);
-  };
-
-  // Initialize map
   useEffect(() => {
-    if (!mapRef.current || mapInstanceRef.current) return;
-
-    const map = L.map(mapRef.current).setView([19.076, 72.8777], 8);
-
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: "&copy; OpenStreetMap contributors",
-      maxZoom: 19,
-    }).addTo(map);
-
-    const drawnItems = new L.FeatureGroup();
-    map.addLayer(drawnItems);
-
-    // Position zoom controls in upper-right to avoid conflict with drawing controls
-    L.control.zoom({
-      position: "topright",
-    }).addTo(map);
-
-    mapInstanceRef.current = map;
-    drawnItemsRef.current = drawnItems;
-
-    return () => {
-      map.remove();
-      mapInstanceRef.current = null;
-      drawnItemsRef.current = null;
+    if (!mapElementRef.current || mapRef.current) return;
+    const map = L.map(mapElementRef.current, { zoomControl: false }).setView([22.15, 88.75], 8);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap contributors", maxZoom: 19 }).addTo(map);
+    L.control.zoom({ position: "topright" }).addTo(map);
+    const legend = new L.Control({ position: "bottomright" });
+    legend.onAdd = () => {
+      const node = L.DomUtil.create("div", "map-legend");
+      node.innerHTML = '<strong>Map legend</strong><span><i class="legend-swatch yellow"></i>Yellow = CSV Reference Data Available</span><span><i class="legend-swatch red"></i>Red = User-Selected Project Region</span>';
+      return node;
     };
+    legend.addTo(map);
+    mapRef.current = map;
+    return () => { map.remove(); mapRef.current = null; };
   }, []);
 
-  // Handle map clicks during drawing
   useEffect(() => {
-    if (!mapInstanceRef.current || drawingState !== "drawing") return;
+    let active = true;
+    api("/regions/reference-regions")
+      .then((collection: ReferenceCollection) => {
+        if (!active || !mapRef.current) return;
+        const layer = L.geoJSON(collection as unknown as GeoJSON.GeoJsonObject, {
+          style: yellowStyle,
+          onEachFeature: (feature, layer) => {
+            const selectedFeature = feature as ReferenceFeature;
+            const props = selectedFeature.properties;
+            layer.bindPopup(`<strong>${props.district || "Reference region"}</strong><br/>${props.region || ""}<br/>Mangrove cover: ${props.total_mangrove_cover_km2 || "Not available"} km²<br/>Assessment: ${props.assessment_year || "Not available"}<br/><small>${props.data_status || ""}</small>`);
+            layer.on("click", () => {
+              if (readOnly) return;
+              clearCustomDrawing();
+              if (selectedLayerRef.current && mapRef.current) mapRef.current.removeLayer(selectedLayerRef.current);
+              selectedLayerRef.current = null;
+              const selection = { referenceRegionId: selectedFeature.id, referenceRegion: selectedFeature.properties };
+              emit(selectedFeature.geometry, selection);
+              setReferenceStyles(selectedFeature.id);
+              setDrawing(false);
+              setMapMessage(`Selected ${selectedFeature.properties.district}. This project region is red.`);
+            });
+          },
+        }).addTo(mapRef.current);
+        referenceLayerRef.current = layer;
+        const initialId = selectionRef.current.referenceRegionId;
+        if (geometryRef.current) showSavedGeometry(geometryRef.current, initialId);
+        else setReferenceStyles(initialId);
+        setReferenceState("ready");
+        setMapMessage(`${collection.features.length} CSV-backed regions are shown in yellow. Click one to select it.`);
+      })
+      .catch((error) => {
+        if (!active) return;
+        setReferenceState("error");
+        setMapMessage(error instanceof Error ? error.message : "Reference regions could not be loaded.");
+      });
+    return () => { active = false; };
+  }, [clearCustomDrawing, emit, readOnly, setReferenceStyles, showSavedGeometry]);
 
-    const map = mapInstanceRef.current;
-
-    const handleClick = (e: L.LeafletMouseEvent) => {
-      // Prevent adding points when clicking on controls
-      if ((e.originalEvent.target as HTMLElement).closest(".leaflet-control")) {
-        return;
-      }
-
-      const latlng = e.latlng;
-      
-      // Add marker for the new vertex
-      addMarker(latlng, markersRef.current.length);
-      setVertexCount(markersRef.current.length);
-
-      // Update preview line
-      const points = markersRef.current.map((m) => m.getLatLng());
-      updatePolygonPreview(points);
-
-      setErrorMessage(null);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !drawing || readOnly) return;
+    const click = (event: L.LeafletMouseEvent) => {
+      if ((event.originalEvent.target as HTMLElement).closest(".leaflet-control")) return;
+      const marker = L.marker(event.latlng, { interactive: false, icon: L.divIcon({ className: "polygon-vertex-marker", html: `<div class="vertex-marker">${customMarkersRef.current.length + 1}</div>`, iconSize: [24, 24], iconAnchor: [12, 12] }) }).addTo(map);
+      customMarkersRef.current.push(marker);
+      const points = customMarkersRef.current.map((item) => item.getLatLng());
+      if (previewRef.current) map.removeLayer(previewRef.current);
+      if (points.length > 1) previewRef.current = L.polyline(points, { color: "#b91c1c", weight: 2, dashArray: "5, 5" }).addTo(map);
+      setVertices(points.length);
     };
+    map.on("click", click);
+    return () => { map.off("click", click); };
+  }, [drawing, readOnly]);
 
-    map.on("click", handleClick);
-
-    return () => {
-      map.off("click", handleClick);
-    };
-  }, [drawingState, addMarker, updatePolygonPreview]);
-
-  // Start drawing
   const startDrawing = () => {
-    clearMarkers();
-    clearTempLine();
-    removeCurrentPolygon();
-    setDrawingState("drawing");
-    setVertexCount(0);
-    setErrorMessage(null);
-    setAreaHectares(null);
-    changeCallbackRef.current(null);
+    clearCustomDrawing();
+    if (selectedLayerRef.current && mapRef.current) mapRef.current.removeLayer(selectedLayerRef.current);
+    selectedLayerRef.current = null;
+    setReferenceStyles(null);
+    emit(null, { referenceRegionId: null, referenceRegion: null });
+    setDrawing(true);
+    setMapMessage("Click at least three points on the map, then finish the polygon.");
+  };
+  const finishDrawing = () => {
+    const points = customMarkersRef.current.map((marker) => marker.getLatLng());
+    if (points.length < 3 || !mapRef.current) { setMapMessage("A project polygon needs at least three vertices."); return; }
+    if (previewRef.current) mapRef.current.removeLayer(previewRef.current);
+    previewRef.current = null;
+    customLayerRef.current = L.polygon(points, redStyle).addTo(mapRef.current);
+    emit({ type: "Polygon", coordinates: [closeRing(points)] }, { referenceRegionId: null, referenceRegion: null });
+    setDrawing(false);
+    setMapMessage("Custom project polygon selected in red.");
+  };
+  const undo = () => {
+    const marker = customMarkersRef.current.pop();
+    if (marker && mapRef.current) mapRef.current.removeLayer(marker);
+    const points = customMarkersRef.current.map((item) => item.getLatLng());
+    if (previewRef.current && mapRef.current) mapRef.current.removeLayer(previewRef.current);
+    previewRef.current = points.length > 1 && mapRef.current ? L.polyline(points, { color: "#b91c1c", weight: 2, dashArray: "5, 5" }).addTo(mapRef.current) : null;
+    setVertices(points.length);
+  };
+  const clear = () => {
+    clearCustomDrawing();
+    if (selectedLayerRef.current && mapRef.current) mapRef.current.removeLayer(selectedLayerRef.current);
+    selectedLayerRef.current = null;
+    setReferenceStyles(null);
+    emit(null, { referenceRegionId: null, referenceRegion: null });
+    setDrawing(false);
+    setMapMessage("Selection cleared. CSV-backed reference regions remain yellow.");
   };
 
-  // Undo last point
-  const undoLastPoint = () => {
-    if (markersRef.current.length === 0) return;
-
-    const lastMarker = markersRef.current.pop();
-    if (lastMarker && mapInstanceRef.current) {
-      mapInstanceRef.current.removeLayer(lastMarker);
-    }
-
-    setVertexCount(markersRef.current.length);
-
-    if (markersRef.current.length >= 2) {
-      const points = markersRef.current.map((m) => m.getLatLng());
-      updatePolygonPreview(points);
-    } else {
-      clearTempLine();
-    }
-  };
-
-  // Clear polygon
-  const clearPolygon = () => {
-    clearMarkers();
-    clearTempLine();
-    removeCurrentPolygon();
-    setDrawingState("idle");
-    setVertexCount(0);
-    setErrorMessage(null);
-    setAreaHectares(null);
-    changeCallbackRef.current(null);
-  };
-
-  // Cancel drawing
-  const cancelDrawing = () => {
-    clearPolygon();
-  };
-
-  // Enable edit mode
-  const editBoundary = () => {
-    if (!currentPolygonRef.current || !mapInstanceRef.current) return;
-
-    // Enable Leaflet.Draw edit mode
-    const editHandler = new (L.Draw as any).Edit.Polygon(currentPolygonRef.current, {
-      moveMarkers: false,
-    });
-
-    editHandler.enable();
-
-    // Save changes on edit complete
-    currentPolygonRef.current.on("edit", () => {
-      const points = currentPolygonRef.current!.getLatLngs()[0] as L.LatLng[];
-      const closedPoints = [...points, points[0]];
-      const coordinates = closedPoints.map((p) => [p.lng, p.lat]);
-
-      const geojson = {
-        type: "Polygon",
-        coordinates: [coordinates],
-      };
-
-      changeCallbackRef.current(geojson);
-      setVertexCount(points.length);
-      calculateArea(points);
-    });
-  };
-
-  const canFinish = drawingState === "drawing" && vertexCount >= 3;
-  const canUndo = drawingState === "drawing" && vertexCount > 0;
-  const canEdit = drawingState === "finished";
-
-  return (
-    <div className="map-wrap">
-      <div ref={mapRef} className="map-canvas" />
-
-      {/* Drawing controls overlay */}
-      <div className="map-controls-overlay">
-        {drawingState === "idle" && (
-          <button className="map-control-btn primary" onClick={startDrawing}>
-            📍 Start Drawing
-          </button>
-        )}
-
-        {drawingState === "drawing" && (
-          <>
-            <button
-              className="map-control-btn success"
-              onClick={finishPolygon}
-              disabled={!canFinish}
-              title={canFinish ? "Close the polygon and save" : "Add at least 3 vertices"}
-            >
-              ✓ Finish Polygon
-            </button>
-            <button
-              className="map-control-btn"
-              onClick={undoLastPoint}
-              disabled={!canUndo}
-            >
-              ↩ Undo Last Point
-            </button>
-            <button className="map-control-btn danger" onClick={cancelDrawing}>
-              ✕ Cancel Drawing
-            </button>
-          </>
-        )}
-
-        {drawingState === "finished" && (
-          <>
-            <button className="map-control-btn" onClick={editBoundary} disabled={!canEdit}>
-              ✏ Edit Boundary
-            </button>
-            <button className="map-control-btn danger" onClick={clearPolygon}>
-              🗑 Clear Polygon
-            </button>
-          </>
-        )}
-      </div>
-
-      {/* Status display */}
-      <div className="map-status-overlay">
-        {drawingState === "drawing" && (
-          <div className="status-info">
-            <span className="vertex-count">
-              Vertices: <strong>{vertexCount}</strong>
-            </span>
-            {vertexCount < 3 && (
-              <span className="hint">Click to add {3 - vertexCount} more point(s)</span>
-            )}
-            {vertexCount >= 3 && (
-              <span className="hint ready">Click "Finish Polygon" to close</span>
-            )}
-          </div>
-        )}
-
-        {drawingState === "finished" && (
-          <div className="status-info success">
-            <span className="vertex-count">
-              Polygon: <strong>{vertexCount}</strong> vertices
-            </span>
-            {areaHectares !== null && (
-              <span className="area-display">
-                Area: <strong>{areaHectares.toLocaleString()}</strong> ha
-              </span>
-            )}
-          </div>
-        )}
-
-        {errorMessage && <div className="status-error">{errorMessage}</div>}
-      </div>
-
-      {/* Help text */}
-      <p className="map-help">
-        {drawingState === "idle" && "Click \"Start Drawing\" to begin defining a region boundary."}
-        {drawingState === "drawing" && "Click on the map to add boundary points. Minimum 3 points required."}
-        {drawingState === "finished" && "Polygon closed and validated. Submit the form to register this region."}
-      </p>
-    </div>
-  );
+  return <div className="map-wrap">
+    <div ref={mapElementRef} className="map-canvas" aria-label="Project region map" />
+    {!readOnly && <div className="map-controls-overlay">
+      {!drawing ? <button type="button" className="map-control-btn primary" onClick={startDrawing}>Draw custom region</button> : <><button type="button" className="map-control-btn success" onClick={finishDrawing} disabled={vertices < 3}>Finish polygon</button><button type="button" className="map-control-btn" onClick={undo} disabled={!vertices}>Undo point</button></>}
+      <button type="button" className="map-control-btn danger" onClick={clear}>Clear selection</button>
+    </div>}
+    <p className={referenceState === "error" ? "map-message error" : "map-message"} role="status">{mapMessage}</p>
+  </div>;
 }

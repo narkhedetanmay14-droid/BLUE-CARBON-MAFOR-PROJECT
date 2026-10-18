@@ -9,3 +9,8 @@ def test_open_ring_rejected():
     assert validate_polygon(g)["valid"] is False
 def test_wrong_type_rejected():
     assert validate_polygon({"type":"Point","coordinates":[0,0]})["valid"] is False
+def test_valid_multipolygon():
+    g={"type":"MultiPolygon","coordinates":[[[[72.0,19.0],[72.01,19.0],[72.01,19.01],[72.0,19.01],[72.0,19.0]]],[[[72.02,19.0],[72.03,19.0],[72.03,19.01],[72.02,19.01],[72.02,19.0]]]]}
+    result=validate_polygon(g)
+    assert result["valid"] is True
+    assert result["area_hectares"] > 0

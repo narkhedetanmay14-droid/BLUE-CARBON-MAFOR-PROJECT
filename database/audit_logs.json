@@ -1,4 +1,47 @@
 {
   "schema_version": 1,
-  "records": []
+  "records": [
+    {
+      "event": "project_decision",
+      "id": "4becf2f4eef44583bd0e0fb96aa5f08a",
+      "project_id": "20ff3d9e-3d92-4821-b077-efbda6e923d6",
+      "admin_id": "0493d4e3-8f7a-4b89-ad2f-3abd23bd4ade",
+      "decision": "approved",
+      "reason": "ALL VERIFYED",
+      "created_at": "2026-10-18T07:31:48.623461+00:00"
+    },
+    {
+      "event": "project_decision",
+      "id": "39d5574621564603951ac9df5446dc14",
+      "project_id": "c740983c-63b0-4ad3-908e-ac65e290e1f1",
+      "admin_id": "0493d4e3-8f7a-4b89-ad2f-3abd23bd4ade",
+      "decision": "approved",
+      "reason": "",
+      "created_at": "2026-10-18T08:19:15.850668+00:00"
+    },
+    {
+      "event": "project_decision",
+      "id": "b5c2eee34fd54cf5b0b0ec337b0ec076",
+      "project_id": "c9619bd2-eadb-4997-9c27-dbe4a150e580",
+      "admin_id": "0493d4e3-8f7a-4b89-ad2f-3abd23bd4ade",
+      "decision": "corrections_requested",
+      "reason": "Controlled evidence correction required before approval.",
+      "created_at": "2026-10-18T08:20:06.916954+00:00"
+    },
+    {
+      "event": "project_resubmitted",
+      "project_id": "c9619bd2-eadb-4997-9c27-dbe4a150e580",
+      "user_id": "c198be92-0783-4648-835a-e2ab2e3694d9",
+      "created_at": "2026-10-18T08:20:12.082205+00:00"
+    },
+    {
+      "event": "project_decision",
+      "id": "36f1bce403774e3295a98326f2145c5c",
+      "project_id": "c9619bd2-eadb-4997-9c27-dbe4a150e580",
+      "admin_id": "0493d4e3-8f7a-4b89-ad2f-3abd23bd4ade",
+      "decision": "rejected",
+      "reason": "Controlled test rejected to validate correction and resubmission persistence.",
+      "created_at": "2026-10-18T08:20:17.848989+00:00"
+    }
+  ]
 }

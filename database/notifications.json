@@ -1,4 +1,33 @@
 {
   "schema_version": 1,
-  "records": []
+  "records": [
+    {
+      "id": "ea227ce788b643b284e78fb339b407d2",
+      "user_id": "629b32d9-07fc-4fdc-a74f-46744f2c03dc",
+      "message": "Project 20ff3d9e-3d92-4821-b077-efbda6e923d6: approved",
+      "created_at": "2026-10-18T07:31:48.639344+00:00",
+      "read": false
+    },
+    {
+      "id": "6892cf0588d64d05819498b26bafc509",
+      "user_id": "c198be92-0783-4648-835a-e2ab2e3694d9",
+      "message": "Project c740983c-63b0-4ad3-908e-ac65e290e1f1: approved",
+      "created_at": "2026-10-18T08:19:15.865057+00:00",
+      "read": false
+    },
+    {
+      "id": "a9faa1cf1d914f4ea0b0e2bd888fa5e0",
+      "user_id": "c198be92-0783-4648-835a-e2ab2e3694d9",
+      "message": "Project c9619bd2-eadb-4997-9c27-dbe4a150e580: corrections_requested",
+      "created_at": "2026-10-18T08:20:06.924414+00:00",
+      "read": false
+    },
+    {
+      "id": "6a7187280d7a4dd1b75c15e29367a6b5",
+      "user_id": "c198be92-0783-4648-835a-e2ab2e3694d9",
+      "message": "Project c9619bd2-eadb-4997-9c27-dbe4a150e580: rejected",
+      "created_at": "2026-10-18T08:20:17.865666+00:00",
+      "read": false
+    }
+  ]
 }
