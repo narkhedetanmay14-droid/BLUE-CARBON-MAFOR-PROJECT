@@ -1,0 +1,18 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from app.api import auth, projects, regions, analysis, admin, marketplace, dashboard
+
+app = FastAPI(title="BLUE CARBON REGISTRATION AND MONITORING", version="0.1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+for router in [auth.router, projects.router, regions.router, analysis.router, admin.router, marketplace.router, dashboard.router]:
+    app.include_router(router, prefix="/api")
+
+@app.get("/api/health")
+def health():
+    return {"status": "ok", "application": "BLUE CARBON REGISTRATION AND MONITORING"}

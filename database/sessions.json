@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "token_hash": "58ef63256a28d2ed552fc2dd3bc1f2969e0bee5b83a48020cef0e79193e425b9",
+      "user_id": "0493d4e3-8f7a-4b89-ad2f-3abd23bd4ade",
+      "expires_at": "2026-10-18T17:00:08.093812+00:00"
+    },
+    {
+      "token_hash": "4036fd5b364e2b3c264274b7391a2d337722c277ca44ffe8e0888248f2bd16cc",
+      "user_id": "0493d4e3-8f7a-4b89-ad2f-3abd23bd4ade",
+      "expires_at": "2026-10-18T17:04:24.300642+00:00"
+    }
+  ]
+}
